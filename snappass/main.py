@@ -29,9 +29,11 @@ else:
         host=redis_host, port=redis_port, db=redis_db)
 
 time_conversion = {
-    'week': 604800,
-    'day': 86400,
-    'hour': 3600
+    '1 hour': 3600,
+    '5 hours': 10800,
+    '1 day': 86400,
+    '3 days': 259200,
+    '1 week': 604800
 }
 
 
