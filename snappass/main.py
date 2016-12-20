@@ -6,13 +6,15 @@ import re
 import redis
 from redis.exceptions import ConnectionError
 
-from flask import abort, Flask, render_template, request
+from flask import abort, Flask, render_template, request, redirect
 
 
-NO_SSL = os.environ.get('NO_SSL', False)
+# SSL is on unless specifically requested
+SSL = not os.environ.get('NO_SSL')
+
 app = Flask(__name__)
 if os.environ.get('DEBUG'):
-   app.debug = True
+    app.debug = True
 app.secret_key = os.environ.get('SECRET_KEY', 'Secret Key')
 app.config.update(
     dict(STATIC_URL=os.environ.get('STATIC_URL', 'static')))
@@ -83,6 +85,16 @@ def clean_input():
 
     return time_conversion[time_period], request.form['password']
 
+@app.before_request
+def before_request():
+    """
+    Redirect to https if SSL active and request is using simple http
+    If behind a AWS Elastic Load Balancer (ELB), the header 'X-Forwarded-Proto' would contain the protocol used
+    https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/x-forwarded-headers.html#x-forwarded-proto
+    """
+    if SSL and request.headers.get('X-Forwarded-Proto') and request.headers.get('X-Forwarded-Proto') == 'http':
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -94,10 +106,10 @@ def handle_password():
     ttl, password = clean_input()
     key = set_password(password, ttl)
 
-    if NO_SSL:
-        base_url = request.url_root
-    else:
+    if SSL:
         base_url = request.url_root.replace("http://", "https://")
+    else:
+        base_url = request.url_root
     link = base_url + key
     return render_template('confirm.html', password_link=link)
 
