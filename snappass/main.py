@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import re
 
 import redis
 from redis.exceptions import ConnectionError
@@ -103,6 +104,8 @@ def handle_password():
 
 @app.route('/<password_key>', methods=['GET'])
 def show_password(password_key):
+    if re.search('bot', request.headers.get('User-Agent', '')):
+        abort(404)
     password = get_password(password_key)
     if not password:
         abort(404)

@@ -73,6 +73,12 @@ class SnapPassRoutesTestCase(TestCase):
         rv = self.app.get('/{0}'.format(key))
         self.assertTrue(password in rv.get_data(as_text=True))
 
+    def test_bots_denial(self):
+        password = "Bots can't access this"
+        key = snappass.set_password(password, 30)
+        rv = self.app.get('/{0}'.format(key), headers={ 'User-Agent': 'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)' })
+        self.assertEquals(rv.status_code, 404)
+
 
 if __name__ == '__main__':
     unittest.main()
