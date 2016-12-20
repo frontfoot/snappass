@@ -6,15 +6,19 @@ import uuid
 import redis
 from redis.exceptions import ConnectionError
 
-from flask import abort, Flask, render_template, request
+from flask import abort, Flask, render_template, request, redirect
+
 
 
 SNEAKY_USER_AGENTS = ('Slackbot', 'facebookexternalhit', 'Twitterbot', 'Facebot', 'WhatsApp')
 SNEAKY_USER_AGENTS_RE = re.compile('|'.join(SNEAKY_USER_AGENTS))
-NO_SSL = os.environ.get('NO_SSL', False)
+
+# SSL is assumed on unless specifically requested
+SSL = not os.environ.get('NO_SSL')
+
 app = Flask(__name__)
 if os.environ.get('DEBUG'):
-   app.debug = True
+    app.debug = True
 app.secret_key = os.environ.get('SECRET_KEY', 'Secret Key')
 app.config.update(
     dict(STATIC_URL=os.environ.get('STATIC_URL', 'static')))
@@ -92,6 +96,16 @@ def request_is_valid(request):
     """
     return not SNEAKY_USER_AGENTS_RE.search(request.headers.get('User-Agent', ''))
 
+@app.before_request
+def before_request():
+    """
+    Redirect to https if SSL active and request is using simple http
+    If behind a AWS Elastic Load Balancer (ELB), the header 'X-Forwarded-Proto' would contain the protocol used
+    https://docs.aws.amazon.com/elasticloadbalancing/latest/classic/x-forwarded-headers.html#x-forwarded-proto
+    """
+    if SSL and request.headers.get('X-Forwarded-Proto') and request.headers.get('X-Forwarded-Proto') == 'http':
+        url = request.url.replace('http://', 'https://', 1)
+        return redirect(url, code=301)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -103,10 +117,10 @@ def handle_password():
     ttl, password = clean_input()
     key = set_password(password, ttl)
 
-    if NO_SSL:
-        base_url = request.url_root
-    else:
+    if SSL:
         base_url = request.url_root.replace("http://", "https://")
+    else:
+        base_url = request.url_root
     link = base_url + key
     return render_template('confirm.html', password_link=link)
 
